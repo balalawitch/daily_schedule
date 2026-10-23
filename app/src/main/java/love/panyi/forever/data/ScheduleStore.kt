@@ -9,7 +9,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.time.LocalDate
 
-/** 按日期把日程和后备活动以 JSON 存进 SharedPreferences。 */
+/** 按日期把日程、后备活动和完成记录以 JSON 存进 SharedPreferences。 */
 class ScheduleStore(context: Context) : ScheduleRepository {
     private val prefs = context.getSharedPreferences("schedule", Context.MODE_PRIVATE)
 
@@ -17,7 +17,7 @@ class ScheduleStore(context: Context) : ScheduleRepository {
     private val version = MutableStateFlow(0)
 
     override fun observeDay(date: LocalDate): Flow<DayData> =
-        version.map { DayData(schedules(date), backups(date)) }
+        version.map { DayData(schedules(date), backups(date), records(date)) }
 
     private fun schedules(date: LocalDate): List<Schedule> {
         val array = JSONArray(prefs.getString("s_$date", "[]"))
@@ -45,6 +45,29 @@ class ScheduleStore(context: Context) : ScheduleRepository {
         val o = JSONObject()
         backups.forEach { (start, text) -> o.put(start.toString(), text) }
         prefs.edit().putString("b_$date", o.toString()).apply()
+        version.update { it + 1 }
+    }
+
+    private fun records(date: LocalDate): Map<Long, ScheduleRecord> {
+        val o = JSONObject(prefs.getString("r_$date", "{}")!!)
+        return o.keys().asSequence().associate {
+            val r = o.getJSONObject(it)
+            it.toLong() to ScheduleRecord(
+                Completion.valueOf(r.getString("status")), r.getInt("start"), r.getInt("end"), r.optString("note"),
+            )
+        }
+    }
+
+    override suspend fun saveRecords(date: LocalDate, records: Map<Long, ScheduleRecord>) {
+        val o = JSONObject()
+        records.forEach { (id, r) ->
+            o.put(
+                id.toString(),
+                JSONObject().put("status", r.status.name).put("start", r.actualStart).put("end", r.actualEnd)
+                    .put("note", r.note),
+            )
+        }
+        prefs.edit().putString("r_$date", o.toString()).apply()
         version.update { it + 1 }
     }
 }

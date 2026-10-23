@@ -43,6 +43,39 @@ fun hasOverlap(schedules: List<Schedule>, start: Int, end: Int, ignoreId: Long? 
 
 fun formatMinute(m: Int) = "%02d:%02d".format(m / 60, m % 60)
 
+/** 完成情况；UNDONE 表示手动改回未完成，到点也不再自动算完成。 */
+enum class Completion(val label: String) {
+    ON_TIME("按时完成"), OVERTIME("超时"), EARLY("提前结束"), SKIPPED("没做"), UNDONE("未完成"),
+}
+
+/** 某条日程在某一天的实际情况。 */
+data class ScheduleRecord(val status: Completion, val actualStart: Int, val actualEnd: Int, val note: String = "")
+
+/** 没有记录时到点（[passed]）自动算完成；有记录时以记录为准。 */
+fun isDone(record: ScheduleRecord?, passed: Boolean) =
+    if (record == null) passed else record.status != Completion.UNDONE
+
+/** 今天的进度：已完成的、正在进行的、还没做的（按开始时间排序）。 */
+data class DayProgress(val done: List<Schedule>, val current: Schedule?, val upcoming: List<Schedule>)
+
+fun dayProgress(schedules: List<Schedule>, records: Map<Long, ScheduleRecord>, nowMinute: Int): DayProgress {
+    val sorted = schedules.sortedBy { it.start }
+    val (done, rest) = sorted.partition { isDone(records[it.id], it.end <= nowMinute) }
+    val current = rest.firstOrNull { nowMinute in it.start until it.end }
+    return DayProgress(done, current, rest - setOfNotNull(current))
+}
+
+/** 标题按「·」拆成事项和做法；以 ⏰ 开头表示需要掐点。 */
+data class TitleParts(val name: String, val hint: String?, val timed: Boolean)
+
+fun splitTitle(title: String): TitleParts {
+    val timed = title.startsWith("⏰")
+    val text = title.removePrefix("⏰").trim()
+    val name = text.substringBefore('·').trim()
+    val hint = text.substringAfter('·', "").trim().ifEmpty { null }
+    return TitleParts(name, hint, timed)
+}
+
 /** 平常日作息模板（试行一周版，2026-10-20），⏰ 为四个硬时间点。 */
 fun weekdayRoutine(): List<Schedule> {
     fun t(hm: String) = hm.split(":").let { it[0].toInt() * 60 + it[1].toInt() }

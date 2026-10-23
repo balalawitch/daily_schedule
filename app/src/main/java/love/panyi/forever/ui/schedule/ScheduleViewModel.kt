@@ -10,13 +10,18 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import love.panyi.forever.data.Completion
 import love.panyi.forever.data.DAY_MINUTES
 import love.panyi.forever.data.DayData
+import love.panyi.forever.data.DayProgress
 import love.panyi.forever.data.Schedule
+import love.panyi.forever.data.ScheduleRecord
 import love.panyi.forever.data.ScheduleRepository
 import love.panyi.forever.data.TimeBlock
 import love.panyi.forever.data.buildTimeline
+import love.panyi.forever.data.dayProgress
 import love.panyi.forever.data.hasOverlap
+import love.panyi.forever.data.isDone
 import love.panyi.forever.data.weekdayRoutine
 import java.time.LocalDate
 import java.time.LocalTime
@@ -31,11 +36,22 @@ data class ScheduleUiState(
     val scheduleError: String? = null,
     /** 正在编辑后备活动的空闲块。 */
     val editingBackup: TimeBlock.Free? = null,
+    /** 正在补记完成情况的日程。 */
+    val editingRecord: Schedule? = null,
 ) {
     val schedules get() = day?.schedules.orEmpty()
     val backups get() = day?.backups.orEmpty()
+    val records get() = day?.records.orEmpty()
     val timeline = buildTimeline(schedules)
-    val isToday get() = date == LocalDate.now()
+    val today: LocalDate = LocalDate.now()
+    val isToday get() = date == today
+
+    /** 只有今天才有「此刻」，其他日期为 null。 */
+    val progress: DayProgress? = if (isToday) dayProgress(schedules, records, nowMinute) else null
+
+    /** 比今天早的日期整天算已过去；今天按结束时间判断。 */
+    fun isDone(s: Schedule) =
+        isDone(records[s.id], date < today || (date == today && s.end <= nowMinute))
 }
 
 private const val KEY_DATE = "date"
@@ -70,13 +86,11 @@ class ScheduleViewModel(
         }
     }
 
-    private fun setDate(date: LocalDate) {
+    fun selectDate(date: LocalDate) {
         savedState[KEY_DATE] = date.toString()
     }
 
-    fun previousDay() = setDate(state.date.minusDays(1))
-    fun nextDay() = setDate(state.date.plusDays(1))
-    fun goToToday() = setDate(LocalDate.now())
+    fun goToToday() = selectDate(LocalDate.now())
 
     /** 当天还没有日程时，一键填入平常日作息。 */
     fun applyRoutine() {
@@ -89,12 +103,16 @@ class ScheduleViewModel(
         editSchedule(Schedule(0, start, minOf(start + 60, DAY_MINUTES), ""))
     }
 
-    fun editSchedule(schedule: Schedule) = _uiState.update { it.copy(editingSchedule = schedule, scheduleError = null) }
+    fun editSchedule(schedule: Schedule) =
+        _uiState.update { it.copy(editingSchedule = schedule, scheduleError = null, editingRecord = null) }
 
     fun editBackup(block: TimeBlock.Free) = _uiState.update { it.copy(editingBackup = block) }
 
-    fun dismissDialog() =
-        _uiState.update { it.copy(editingSchedule = null, scheduleError = null, editingBackup = null) }
+    fun editRecord(schedule: Schedule) = _uiState.update { it.copy(editingRecord = schedule) }
+
+    fun dismissDialog() = _uiState.update {
+        it.copy(editingSchedule = null, scheduleError = null, editingBackup = null, editingRecord = null)
+    }
 
     fun saveSchedule(s: Schedule) {
         val error = when {
@@ -113,7 +131,10 @@ class ScheduleViewModel(
 
     fun deleteSchedule() {
         val id = state.editingSchedule?.id ?: return
+        val date = state.date
+        val records = state.records - id
         writeSchedules(state.schedules.filter { it.id != id })
+        viewModelScope.launch { repository.saveRecords(date, records) }
     }
 
     private fun writeSchedules(schedules: List<Schedule>) {
@@ -128,5 +149,28 @@ class ScheduleViewModel(
         val backups = if (text.isBlank()) state.backups - block.start else state.backups + (block.start to text.trim())
         dismissDialog()
         viewModelScope.launch { repository.saveBackups(date, backups) }
+    }
+
+    /** 此刻卡上的「提前完成」：结束时间记为现在。 */
+    fun completeEarly(schedule: Schedule) =
+        writeRecord(schedule.id, ScheduleRecord(Completion.EARLY, schedule.start, state.nowMinute))
+
+    fun saveRecord(record: ScheduleRecord) {
+        val id = state.editingRecord?.id ?: return
+        dismissDialog()
+        writeRecord(id, record.copy(note = record.note.trim()))
+    }
+
+    /** 改回未完成：到点也不会再自动算完成。 */
+    fun reopenRecord() {
+        val s = state.editingRecord ?: return
+        dismissDialog()
+        writeRecord(s.id, ScheduleRecord(Completion.UNDONE, s.start, s.end))
+    }
+
+    private fun writeRecord(id: Long, record: ScheduleRecord) {
+        val date = state.date
+        val records = state.records + (id to record)
+        viewModelScope.launch { repository.saveRecords(date, records) }
     }
 }
