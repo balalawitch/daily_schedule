@@ -1,4 +1,4 @@
-package love.panyi.forever
+package love.panyi.forever.data
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

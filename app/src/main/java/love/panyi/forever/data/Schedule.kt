@@ -1,4 +1,4 @@
-package love.panyi.forever
+package love.panyi.forever.data
 
 const val DAY_MINUTES = 24 * 60
 

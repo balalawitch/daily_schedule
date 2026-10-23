@@ -1,4 +1,4 @@
-package love.panyi.forever
+package love.panyi.forever.ui.schedule
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
@@ -33,47 +33,32 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.delay
-import java.time.LocalDate
-import java.time.LocalTime
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import love.panyi.forever.data.DAY_MINUTES
+import love.panyi.forever.data.Schedule
+import love.panyi.forever.data.TimeBlock
+import love.panyi.forever.data.formatMinute
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 private val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd EEE", Locale.CHINA)
 
-private fun currentMinute() = LocalTime.now().let { it.hour * 60 + it.minute }
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ScheduleScreen(store: ScheduleStore) {
-    var date by rememberSaveable { mutableStateOf(LocalDate.now()) }
-    var schedules by remember(date) { mutableStateOf(store.schedules(date)) }
-    var backups by remember(date) { mutableStateOf(store.backups(date)) }
-    val timeline = remember(schedules) { buildTimeline(schedules) }
-
-    var nowMinute by remember { mutableIntStateOf(currentMinute()) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(30_000)
-            nowMinute = currentMinute()
-        }
-    }
-    val isToday = date == LocalDate.now()
-
-    // 正在编辑的日程（id == 0 表示新建）与正在编辑后备活动的空闲块
-    var editingSchedule by remember { mutableStateOf<Schedule?>(null) }
-    var editingBackup by remember { mutableStateOf<TimeBlock.Free?>(null) }
+fun ScheduleScreen(viewModel: ScheduleViewModel) {
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val loaded = state.day != null
 
     val listState = rememberLazyListState()
-    LaunchedEffect(date) {
-        val index = if (isToday) timeline.indexOfFirst { nowMinute < it.end } else 8
+    LaunchedEffect(state.date, loaded) {
+        if (!loaded) return@LaunchedEffect
+        val index = if (state.isToday) state.timeline.indexOfFirst { state.nowMinute < it.end } else 8
         listState.scrollToItem(maxOf(index - 1, 0))
     }
 
@@ -82,43 +67,39 @@ fun ScheduleScreen(store: ScheduleStore) {
             CenterAlignedTopAppBar(
                 title = {
                     Text(
-                        date.format(dateFormatter),
+                        state.date.format(dateFormatter),
                         modifier = Modifier.padding(horizontal = 8.dp)
                     )
                 },
-                navigationIcon = { TextButton(onClick = { date = date.minusDays(1) }) { Text("‹ 前一天") } },
+                navigationIcon = { TextButton(onClick = viewModel::previousDay) { Text("‹ 前一天") } },
                 actions = {
-                    if (!isToday) TextButton(onClick = { date = LocalDate.now() }) { Text("今天") }
-                    TextButton(onClick = { date = date.plusDays(1) }) { Text("后一天 ›") }
+                    if (!state.isToday) TextButton(onClick = viewModel::goToToday) { Text("今天") }
+                    TextButton(onClick = viewModel::nextDay) { Text("后一天 ›") }
                 }
             )
         },
         floatingActionButton = {
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 // 当天还没有日程时，可一键填入平常日作息
-                if (schedules.isEmpty()) {
-                    ExtendedFloatingActionButton(onClick = {
-                        schedules = weekdayRoutine()
-                        store.saveSchedules(date, schedules)
-                    }) { Text("📋 套用作息") }
+                if (loaded && state.schedules.isEmpty()) {
+                    ExtendedFloatingActionButton(onClick = viewModel::applyRoutine) { Text("📋 套用作息") }
                 }
-                FloatingActionButton(onClick = {
-                    val start = if (isToday) nowMinute / 60 * 60 else 9 * 60
-                    editingSchedule = Schedule(0, start, minOf(start + 60, DAY_MINUTES), "")
-                }) { Text("＋", style = MaterialTheme.typography.headlineSmall) }
+                FloatingActionButton(onClick = viewModel::newSchedule) {
+                    Text("＋", style = MaterialTheme.typography.headlineSmall)
+                }
             }
         }
     ) { padding ->
         LazyColumn(state = listState, contentPadding = padding) {
-            items(timeline, key = { it.start }) { block ->
+            if (loaded) items(state.timeline, key = { it.start }) { block ->
                 TimeRow(
                     block = block,
-                    backup = backups[block.start],
-                    isNow = isToday && nowMinute >= block.start && nowMinute < block.end,
+                    backup = state.backups[block.start],
+                    isNow = state.isToday && state.nowMinute >= block.start && state.nowMinute < block.end,
                     onClick = {
                         when (block) {
-                            is TimeBlock.Busy -> editingSchedule = block.schedule
-                            is TimeBlock.Free -> editingBackup = block
+                            is TimeBlock.Busy -> viewModel.editSchedule(block.schedule)
+                            is TimeBlock.Free -> viewModel.editBackup(block)
                         }
                     }
                 )
@@ -126,44 +107,22 @@ fun ScheduleScreen(store: ScheduleStore) {
         }
     }
 
-    editingSchedule?.let { initial ->
+    state.editingSchedule?.let { initial ->
         ScheduleDialog(
             initial = initial,
-            validate = { s ->
-                when {
-                    s.title.isBlank() -> "请填写标题"
-                    s.end <= s.start -> "结束时间需晚于开始时间"
-                    hasOverlap(schedules, s.start, s.end, ignoreId = s.id) -> "与已有日程时间重叠"
-                    else -> null
-                }
-            },
-            onSave = { s ->
-                val saved = if (s.id == 0L) s.copy(id = System.currentTimeMillis()) else s
-                schedules = schedules.filter { it.id != saved.id } + saved
-                store.saveSchedules(date, schedules)
-                editingSchedule = null
-            },
-            onDelete = if (initial.id == 0L) null else {
-                {
-                    schedules = schedules.filter { it.id != initial.id }
-                    store.saveSchedules(date, schedules)
-                    editingSchedule = null
-                }
-            },
-            onDismiss = { editingSchedule = null }
+            error = state.scheduleError,
+            onSave = viewModel::saveSchedule,
+            onDelete = if (initial.id == 0L) null else viewModel::deleteSchedule,
+            onDismiss = viewModel::dismissDialog
         )
     }
 
-    editingBackup?.let { block ->
+    state.editingBackup?.let { block ->
         BackupDialog(
             block = block,
-            initial = backups[block.start].orEmpty(),
-            onSave = { text ->
-                backups = if (text.isBlank()) backups - block.start else backups + (block.start to text.trim())
-                store.saveBackups(date, backups)
-                editingBackup = null
-            },
-            onDismiss = { editingBackup = null }
+            initial = state.backups[block.start].orEmpty(),
+            onSave = viewModel::saveBackup,
+            onDismiss = viewModel::dismissDialog
         )
     }
 }
@@ -228,7 +187,7 @@ private fun TimeRow(block: TimeBlock, backup: String?, isNow: Boolean, onClick: 
 @Composable
 private fun ScheduleDialog(
     initial: Schedule,
-    validate: (Schedule) -> String?,
+    error: String?,
     onSave: (Schedule) -> Unit,
     onDelete: (() -> Unit)?,
     onDismiss: () -> Unit
@@ -236,7 +195,6 @@ private fun ScheduleDialog(
     var title by remember { mutableStateOf(initial.title) }
     var start by remember { mutableIntStateOf(initial.start) }
     var end by remember { mutableIntStateOf(initial.end) }
-    var error by remember { mutableStateOf<String?>(null) }
     var picking by remember { mutableStateOf<String?>(null) } // "start" / "end"
 
     AlertDialog(
@@ -254,11 +212,7 @@ private fun ScheduleDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = {
-                val s = initial.copy(title = title.trim(), start = start, end = end)
-                error = validate(s)
-                if (error == null) onSave(s)
-            }) { Text("保存") }
+            TextButton(onClick = { onSave(initial.copy(title = title.trim(), start = start, end = end)) }) { Text("保存") }
         },
         dismissButton = {
             Row {
