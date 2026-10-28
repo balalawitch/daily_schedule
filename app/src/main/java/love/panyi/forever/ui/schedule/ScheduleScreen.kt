@@ -84,7 +84,7 @@ private val weekLabels = listOf("一", "二", "三", "四", "五", "六", "日")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ScheduleScreen(viewModel: ScheduleViewModel) {
+fun ScheduleScreen(viewModel: ScheduleViewModel, importViewModel: ImportViewModel) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val loaded = state.day != null
     // 今天且有日程时才有此刻卡
