@@ -5,7 +5,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
-import org.json.JSONArray
 import org.json.JSONObject
 import java.time.LocalDate
 
@@ -19,20 +18,11 @@ class ScheduleStore(context: Context) : ScheduleRepository {
     override fun observeDay(date: LocalDate): Flow<DayData> =
         version.map { DayData(schedules(date), backups(date), records(date)) }
 
-    private fun schedules(date: LocalDate): List<Schedule> {
-        val array = JSONArray(prefs.getString("s_$date", "[]"))
-        return List(array.length()) {
-            val o = array.getJSONObject(it)
-            Schedule(o.getLong("id"), o.getInt("start"), o.getInt("end"), o.getString("title"))
-        }
-    }
+    private fun schedules(date: LocalDate): List<Schedule> =
+        schedulesFromJson(prefs.getString("s_$date", "[]")!!)
 
     override suspend fun saveSchedules(date: LocalDate, schedules: List<Schedule>) {
-        val array = JSONArray()
-        schedules.forEach {
-            array.put(JSONObject().put("id", it.id).put("start", it.start).put("end", it.end).put("title", it.title))
-        }
-        prefs.edit().putString("s_$date", array.toString()).apply()
+        prefs.edit().putString("s_$date", schedulesToJson(schedules)).apply()
         version.update { it + 1 }
     }
 

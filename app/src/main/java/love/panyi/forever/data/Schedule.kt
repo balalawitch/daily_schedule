@@ -3,7 +3,7 @@ package love.panyi.forever.data
 const val DAY_MINUTES = 24 * 60
 
 /** 一条日程，start/end 为当天的分钟数，[start, end)。 */
-data class Schedule(val id: Long, val start: Int, val end: Int, val title: String)
+data class Schedule(val id: Long, val start: Int, val end: Int, val title: String, val description: String = "")
 
 /** 时间轴上的一个区块：日程块或空闲块。 */
 sealed interface TimeBlock {
@@ -40,6 +40,14 @@ fun buildTimeline(schedules: List<Schedule>): List<TimeBlock> {
 
 fun hasOverlap(schedules: List<Schedule>, start: Int, end: Int, ignoreId: Long? = null) =
     schedules.any { it.id != ignoreId && start < it.end && it.start < end }
+
+/** 保存日程前的校验，返回错误文案；通过则为 null。[others] 里与 [s] 同 id 的日程不算重叠（编辑自己）。 */
+fun validateSchedule(s: Schedule, others: List<Schedule>): String? = when {
+    s.title.isBlank() -> "请填写标题"
+    s.end <= s.start -> "结束时间需晚于开始时间"
+    hasOverlap(others, s.start, s.end, ignoreId = s.id) -> "与已有日程时间重叠"
+    else -> null
+}
 
 fun formatMinute(m: Int) = "%02d:%02d".format(m / 60, m % 60)
 

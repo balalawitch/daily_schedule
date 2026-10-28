@@ -2,6 +2,7 @@ package love.panyi.forever.data
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -65,5 +66,14 @@ class TimelineTest {
         assertTrue(hasOverlap(existing, h(9, 30), h(10, 30)))
         assertFalse(hasOverlap(existing, h(10), h(11)))
         assertFalse(hasOverlap(existing, h(9), h(10), ignoreId = 1))
+    }
+
+    @Test
+    fun validateSchedule_messages() {
+        val other = Schedule(1, h(9), h(10), "开会")
+        assertEquals("请填写标题", validateSchedule(Schedule(2, h(11), h(12), " "), listOf(other)))
+        assertEquals("结束时间需晚于开始时间", validateSchedule(Schedule(2, h(12), h(12), "x"), listOf(other)))
+        assertEquals("与已有日程时间重叠", validateSchedule(Schedule(2, h(9, 30), h(11), "x"), listOf(other)))
+        assertNull(validateSchedule(other.copy(end = h(10, 30)), listOf(other))) // 编辑自己不算重叠
     }
 }

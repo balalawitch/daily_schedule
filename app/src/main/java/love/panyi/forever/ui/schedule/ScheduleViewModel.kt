@@ -20,8 +20,8 @@ import love.panyi.forever.data.ScheduleRepository
 import love.panyi.forever.data.TimeBlock
 import love.panyi.forever.data.buildTimeline
 import love.panyi.forever.data.dayProgress
-import love.panyi.forever.data.hasOverlap
 import love.panyi.forever.data.isDone
+import love.panyi.forever.data.validateSchedule
 import love.panyi.forever.data.weekdayRoutine
 import java.time.LocalDate
 import java.time.LocalTime
@@ -115,12 +115,7 @@ class ScheduleViewModel(
     }
 
     fun saveSchedule(s: Schedule) {
-        val error = when {
-            s.title.isBlank() -> "请填写标题"
-            s.end <= s.start -> "结束时间需晚于开始时间"
-            hasOverlap(state.schedules, s.start, s.end, ignoreId = s.id) -> "与已有日程时间重叠"
-            else -> null
-        }
+        val error = validateSchedule(s, state.schedules)
         if (error != null) {
             _uiState.update { it.copy(scheduleError = error) }
             return
