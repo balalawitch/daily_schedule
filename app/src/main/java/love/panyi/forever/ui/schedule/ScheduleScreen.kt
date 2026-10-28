@@ -779,7 +779,7 @@ private fun TitleLine(name: String, timed: Boolean, weight: FontWeight) {
 }
 
 @Composable
-internal fun TimeRow(block: TimeBlock, backup: String?, done: Boolean, record: ScheduleRecord?, onClick: () -> Unit) {
+internal fun TimeRow(block: TimeBlock, backup: String?, done: Boolean, record: ScheduleRecord?, onClick: () -> Unit, readOnly: Boolean = false) {
     val colors = MaterialTheme.colorScheme
     val minutes = block.end - block.start
     Row(
@@ -851,7 +851,7 @@ internal fun TimeRow(block: TimeBlock, backup: String?, done: Boolean, record: S
                             style = Stroke(1.5.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 4.dp.toPx()))),
                         )
                     }
-                    .clickable(onClick = onClick)
+                    .then(if (readOnly) Modifier else Modifier.clickable(onClick = onClick))
                     .padding(start = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -861,7 +861,7 @@ internal fun TimeRow(block: TimeBlock, backup: String?, done: Boolean, record: S
                     style = MaterialTheme.typography.bodyMedium,
                     color = colors.onSurfaceVariant,
                 )
-                ActionHint("＋ 后备活动")
+                if (!readOnly) ActionHint("＋ 后备活动")
             }
         }
     }

@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -151,6 +153,7 @@ private fun ImportInputSheet(
             Modifier
                 .fillMaxWidth()
                 .imePadding()
+                .verticalScroll(rememberScrollState())
                 .padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -220,6 +223,7 @@ private fun ImportSettingsSheet(
             Modifier
                 .fillMaxWidth()
                 .imePadding()
+                .verticalScroll(rememberScrollState())
                 .padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -359,6 +363,7 @@ private fun ImportPreview(
                                     backup = null,
                                     done = false,
                                     record = null,
+                                    readOnly = true,
                                     onClick = { if (block is TimeBlock.Busy) onItemClick(block.schedule) },
                                 )
                             }
