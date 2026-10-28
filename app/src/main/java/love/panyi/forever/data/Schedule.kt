@@ -5,6 +5,9 @@ const val DAY_MINUTES = 24 * 60
 /** 一条日程，start/end 为当天的分钟数，[start, end)。 */
 data class Schedule(val id: Long, val start: Int, val end: Int, val title: String, val description: String = "")
 
+/** 一份命名的日程模板（AI 导入的结果）。 */
+data class ScheduleTemplate(val name: String, val items: List<Schedule>)
+
 /** 时间轴上的一个区块：日程块或空闲块。 */
 sealed interface TimeBlock {
     val start: Int
