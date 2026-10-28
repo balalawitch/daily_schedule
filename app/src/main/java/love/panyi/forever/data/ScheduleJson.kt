@@ -126,3 +126,46 @@ fun parsePlan(raw: String, idBase: Long = System.currentTimeMillis()): List<Sche
     if (result.isEmpty()) throw PlanParseException("这段文字里没有找到日程安排", empty = true)
     return result
 }
+
+// ---- 云端（OpenAI 兼容 chat/completions）请求 / 响应的纯函数 ----
+
+private const val CHAT_PATH = "/chat/completions"
+
+/** 把用户填的地址整理成 chat/completions 完整地址；不是 https:// 开头抛 [AiException]。 */
+fun chatEndpoint(url: String): String {
+    val base = url.trim().trimEnd('/')
+    if (!base.startsWith("https://")) throw AiException("接口地址必须以 https:// 开头")
+    return if (base.endsWith(CHAT_PATH)) base else base + CHAT_PATH
+}
+
+/** [system] 为空白时不带 system 消息（「测试连接」只发一条 user 消息）。 */
+fun chatRequestJson(model: String, system: String, user: String): String {
+    val messages = JSONArray()
+    if (system.isNotBlank()) messages.put(JSONObject().put("role", "system").put("content", system))
+    messages.put(JSONObject().put("role", "user").put("content", user))
+    return JSONObject().put("model", model).put("temperature", 0.2).put("messages", messages).toString()
+}
+
+/** 取 `choices[0].message.content`；拿不到抛 [PlanParseException]。 */
+fun chatResponseContent(body: String): String {
+    val content = try {
+        val message = JSONObject(body).optJSONArray("choices")?.optJSONObject(0)?.optJSONObject("message")
+        if (message == null || message.isNull("content")) null else message.optString("content")
+    } catch (_: JSONException) {
+        null
+    }
+    if (content.isNullOrBlank()) throw PlanParseException("模型没有返回内容")
+    return content
+}
+
+/** 给用户看的 HTTP 错误；body 里有 `error.message` 时附在后面。 */
+fun httpErrorMessage(code: Int, body: String): String {
+    if (code == 401 || code == 403) return "API Key 无效"
+    val detail = try {
+        val error = JSONObject(body).optJSONObject("error")
+        if (error == null || error.isNull("message")) "" else error.optString("message").trim()
+    } catch (_: JSONException) {
+        ""
+    }
+    return if (detail.isEmpty()) "请求失败（$code）" else "请求失败（$code）：$detail"
+}
