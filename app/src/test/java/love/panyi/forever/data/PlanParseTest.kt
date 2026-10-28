@@ -86,4 +86,18 @@ class PlanParseTest {
             assertFalse(raw, e.empty)
         }
     }
+
+    @Test
+    fun parsePlan_jsonNullFieldsAreBlank() {
+        val ok = parsePlan(
+            """{"days":[{"label":null,"items":[{"start":"08:00","end":"09:00","title":"早读","description":null}]}]}""",
+        ).single()
+        assertEquals("模板 1", ok.name)
+        assertEquals("", ok.items.single().description)
+
+        val e = assertThrows(PlanParseException::class.java) {
+            parsePlan("""{"days":[{"label":"每天","items":[{"start":"08:00","end":"09:00","title":null}]}]}""")
+        }
+        assertFalse(e.empty)
+    }
 }

@@ -26,6 +26,9 @@ fun schedulesFromJson(json: String): List<Schedule> {
 /** AI 输出解析失败。[empty] 为 true 表示「没找到日程」，不必重试；[message] 是中文原因。 */
 class PlanParseException(message: String, val empty: Boolean = false) : Exception(message)
 
+/** 取字符串字段并 trim；缺失或 JSON null 都视为空串（Android 的 optString 会把 null 变成 "null"）。 */
+private fun JSONObject.text(key: String) = if (isNull(key)) "" else optString(key).trim()
+
 private val CLOCK = Regex("""^(\d{1,2}):(\d{2})$""")
 
 /** 把 "H:MM" 解析成当天分钟数（24:00 = 1440）；格式不对返回 null。 */
@@ -38,18 +41,18 @@ private fun parseClock(text: String): Int? {
 }
 
 private fun parsePlanItem(o: JSONObject, id: Long): Schedule {
-    val startText = o.optString("start")
-    val endText = o.optString("end")
+    val startText = o.text("start")
+    val endText = o.text("end")
     val start = parseClock(startText)
     val end = parseClock(endText)
     if (start == null || start == DAY_MINUTES) throw PlanParseException("开始时间“$startText”不合法")
     if (end == null) throw PlanParseException("结束时间“$endText”不合法")
-    val title = o.optString("title").trim()
+    val title = o.text("title")
     if (title.isEmpty()) throw PlanParseException("$startText 的日程缺少标题")
     // 结束 00:00 视为 24:00；跨午夜（end < start）截到 24:00
     val fixedEnd = if (end == 0 || end < start) DAY_MINUTES else end
     if (fixedEnd == start) throw PlanParseException("$startText–$endText 开始和结束时间相同")
-    return Schedule(id, start, fixedEnd, title, o.optString("description").trim())
+    return Schedule(id, start, fixedEnd, title, o.text("description"))
 }
 
 /**
@@ -86,7 +89,7 @@ fun parsePlan(raw: String, idBase: Long = System.currentTimeMillis()): List<Sche
             }
             accepted += s
         }
-        val name = day.optString("label").trim().ifEmpty { "模板 ${result.size + 1}" }
+        val name = day.text("label").ifEmpty { "模板 ${result.size + 1}" }
         result += ScheduleTemplate(name, accepted)
     }
     if (result.isEmpty()) throw PlanParseException("这段文字里没有找到日程安排", empty = true)
