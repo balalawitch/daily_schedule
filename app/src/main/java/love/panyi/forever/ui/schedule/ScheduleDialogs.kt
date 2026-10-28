@@ -56,6 +56,7 @@ internal fun ScheduleDialog(
     onDismiss: () -> Unit
 ) {
     var title by remember { mutableStateOf(initial.title) }
+    var description by remember { mutableStateOf(initial.description) }
     var start by remember { mutableIntStateOf(initial.start) }
     var end by remember { mutableIntStateOf(initial.end) }
     var picking by remember { mutableStateOf<String?>(null) } // "start" / "end"
@@ -66,6 +67,13 @@ internal fun ScheduleDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("标题") }, singleLine = true)
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text("说明（选填）") },
+                    minLines = 2,
+                    maxLines = 5,
+                )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     OutlinedButton(onClick = { picking = "start" }) { Text("开始 ${formatMinute(start)}") }
                     Spacer(Modifier.width(8.dp))
@@ -75,7 +83,9 @@ internal fun ScheduleDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { onSave(initial.copy(title = title.trim(), start = start, end = end)) }) { Text("保存") }
+            TextButton(
+                onClick = { onSave(initial.copy(title = title.trim(), start = start, end = end, description = description.trim())) }
+            ) { Text("保存") }
         },
         dismissButton = {
             Row {

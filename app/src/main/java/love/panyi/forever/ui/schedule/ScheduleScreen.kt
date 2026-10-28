@@ -495,6 +495,18 @@ private fun NowCard(
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(parts.name, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                     parts.hint?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = muted) }
+                    if (current.description.isNotEmpty()) {
+                        // 说明默认只显示 4 行，点击展开 / 收起
+                        var expanded by remember(current.id) { mutableStateOf(false) }
+                        Text(
+                            current.description,
+                            Modifier.clickable { expanded = !expanded },
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = colors.onPrimary,
+                            maxLines = if (expanded) Int.MAX_VALUE else 4,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 }
                 val fraction = (nowMinute - current.start).toFloat() / (current.end - current.start)
                 Box(
