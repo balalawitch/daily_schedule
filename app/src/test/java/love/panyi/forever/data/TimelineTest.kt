@@ -76,4 +76,11 @@ class TimelineTest {
         assertEquals("与已有日程时间重叠", validateSchedule(Schedule(2, h(9, 30), h(11), "x"), listOf(other)))
         assertNull(validateSchedule(other.copy(end = h(10, 30)), listOf(other))) // 编辑自己不算重叠
     }
+
+    @Test
+    fun uniqueName_addsSuffix() {
+        assertEquals("周末", uniqueName("周末", setOf("周一–周五")))
+        assertEquals("周末 (2)", uniqueName("周末", setOf("周末")))
+        assertEquals("周末 (3)", uniqueName("周末", setOf("周末", "周末 (2)")))
+    }
 }

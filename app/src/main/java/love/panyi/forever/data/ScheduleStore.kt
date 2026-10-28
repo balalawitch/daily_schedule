@@ -60,4 +60,11 @@ class ScheduleStore(context: Context) : ScheduleRepository {
         prefs.edit().putString("r_$date", o.toString()).apply()
         version.update { it + 1 }
     }
+
+    override suspend fun loadTemplates(): List<ScheduleTemplate> =
+        templatesFromJson(prefs.getString("templates", "[]")!!)
+
+    override suspend fun saveTemplates(templates: List<ScheduleTemplate>) {
+        prefs.edit().putString("templates", templatesToJson(templates)).apply()
+    }
 }

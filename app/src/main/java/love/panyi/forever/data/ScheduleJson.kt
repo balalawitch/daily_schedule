@@ -23,6 +23,37 @@ fun schedulesFromJson(json: String): List<Schedule> {
     }
 }
 
+/** 模板不存 id（无意义）；读出时 id 用 0 起的下标。 */
+fun templatesToJson(list: List<ScheduleTemplate>): String {
+    val array = JSONArray()
+    list.forEach { t ->
+        val items = JSONArray()
+        t.items.forEach {
+            items.put(
+                JSONObject().put("start", it.start).put("end", it.end).put("title", it.title)
+                    .put("description", it.description),
+            )
+        }
+        array.put(JSONObject().put("name", t.name).put("items", items))
+    }
+    return array.toString()
+}
+
+fun templatesFromJson(json: String): List<ScheduleTemplate> {
+    val array = JSONArray(json)
+    return List(array.length()) { i ->
+        val o = array.getJSONObject(i)
+        val items = o.getJSONArray("items")
+        ScheduleTemplate(
+            o.getString("name"),
+            List(items.length()) { j ->
+                val item = items.getJSONObject(j)
+                Schedule(j.toLong(), item.getInt("start"), item.getInt("end"), item.getString("title"), item.text("description"))
+            },
+        )
+    }
+}
+
 /** AI 输出解析失败。[empty] 为 true 表示「没找到日程」，不必重试；[message] 是中文原因。 */
 class PlanParseException(message: String, val empty: Boolean = false) : Exception(message)
 

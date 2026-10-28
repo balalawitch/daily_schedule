@@ -16,4 +16,11 @@ class ScheduleJsonTest {
         val old = """[{"id":5,"start":60,"end":120,"title":"午睡"}]"""
         assertEquals(listOf(Schedule(5, 60, 120, "午睡", "")), schedulesFromJson(old))
     }
+
+    @Test
+    fun templates_roundTrip() {
+        val t = listOf(ScheduleTemplate("周末", listOf(Schedule(0, 600, 660, "钢琴", "带琴谱"))))
+        assertEquals(t, templatesFromJson(templatesToJson(t)))
+        assertEquals(emptyList<ScheduleTemplate>(), templatesFromJson("[]"))
+    }
 }

@@ -8,6 +8,14 @@ data class Schedule(val id: Long, val start: Int, val end: Int, val title: Strin
 /** 一份命名的日程模板（AI 导入的结果）。 */
 data class ScheduleTemplate(val name: String, val items: List<Schedule>)
 
+/** 模板重名时加后缀「 (2)」「 (3)」……，不重名则原样返回。 */
+fun uniqueName(name: String, taken: Set<String>): String {
+    if (name !in taken) return name
+    var n = 2
+    while ("$name ($n)" in taken) n++
+    return "$name ($n)"
+}
+
 /** 时间轴上的一个区块：日程块或空闲块。 */
 sealed interface TimeBlock {
     val start: Int

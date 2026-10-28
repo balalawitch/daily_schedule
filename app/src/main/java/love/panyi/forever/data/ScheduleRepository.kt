@@ -16,4 +16,8 @@ interface ScheduleRepository {
     suspend fun saveSchedules(date: LocalDate, schedules: List<Schedule>)
     suspend fun saveBackups(date: LocalDate, backups: Map<Int, String>)
     suspend fun saveRecords(date: LocalDate, records: Map<Long, ScheduleRecord>)
+
+    /** 已保存的日程模板；没有 Flow 观察它们，每次用到时重新读取。 */
+    suspend fun loadTemplates(): List<ScheduleTemplate>
+    suspend fun saveTemplates(templates: List<ScheduleTemplate>)
 }
