@@ -35,6 +35,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -92,6 +94,7 @@ fun ScheduleScreen(viewModel: ScheduleViewModel, importViewModel: ImportViewMode
     var pickingDate by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
+    val snackbar = remember { SnackbarHostState() }
     // 停在此刻时展开；一拖动列表就缩回时间轴里的一行
     var expanded by remember(state.date) { mutableStateOf(true) }
 
@@ -176,10 +179,12 @@ fun ScheduleScreen(viewModel: ScheduleViewModel, importViewModel: ImportViewMode
             onSelect = viewModel::selectDate,
             onToday = viewModel::goToToday,
             onPickDate = { pickingDate = true },
+            onImport = importViewModel::open,
         )
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbar) },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = viewModel::newSchedule,
@@ -323,6 +328,8 @@ fun ScheduleScreen(viewModel: ScheduleViewModel, importViewModel: ImportViewMode
             onDismiss = viewModel::dismissDialog,
         )
     }
+
+    ImportScreen(importViewModel, snackbar)
 }
 
 /** 时长：35 分钟 / 1 小时 / 7 小时 35 分钟。 */
@@ -351,6 +358,7 @@ private fun WeekHeader(
     onSelect: (LocalDate) -> Unit,
     onToday: () -> Unit,
     onPickDate: () -> Unit,
+    onImport: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
     Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -364,6 +372,7 @@ private fun WeekHeader(
             if (date != today) {
                 OutlinedButton(onClick = onToday, contentPadding = PaddingValues(horizontal = 12.dp)) { Text("回到今天") }
             }
+            ImportEntryButton(onImport)
             IconButton(onClick = onPickDate) {
                 Icon(LineIcons.Calendar, contentDescription = "选择日期", tint = colors.onSurfaceVariant)
             }
@@ -770,7 +779,7 @@ private fun TitleLine(name: String, timed: Boolean, weight: FontWeight) {
 }
 
 @Composable
-private fun TimeRow(block: TimeBlock, backup: String?, done: Boolean, record: ScheduleRecord?, onClick: () -> Unit) {
+internal fun TimeRow(block: TimeBlock, backup: String?, done: Boolean, record: ScheduleRecord?, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val minutes = block.end - block.start
     Row(
