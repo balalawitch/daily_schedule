@@ -17,9 +17,10 @@ enum class AiEngine(val label: String) {
 }
 
 data class CloudConfig(val url: String = "", val apiKey: String = "", val model: String = "") {
-    /** 三项都已填写，且地址是 https://。 */
+    /** 三项都已填写，地址是 https://，且 Key 只含可打印 ASCII（HTTP 头不接受零宽字符、换行、全角字符）。 */
     val isComplete: Boolean
-        get() = url.isNotBlank() && apiKey.isNotBlank() && model.isNotBlank() && url.trim().startsWith("https://")
+        get() = url.isNotBlank() && apiKey.isNotBlank() && model.isNotBlank() && url.trim().startsWith("https://") &&
+            apiKey.trim().all { it in '!'..'~' }
 }
 
 /** 给用户看的错误（网络、HTTP）。 */

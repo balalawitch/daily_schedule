@@ -3,8 +3,10 @@ package love.panyi.forever.data
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runInterruptible
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 
 /**
  * 把一段文字整理成若干日程模板。
@@ -50,33 +52,55 @@ class CloudGenerator(private val config: CloudConfig) : ScheduleGenerator {
         post(chatRequestJson(config.model.trim(), "", "ping"))
     }
 
-    /** 发送请求，返回 HTTP 200 的响应体；其余情况抛 [AiException]。 */
+    /**
+     * 发送请求，返回 HTTP 200 的响应体；其余情况抛 [AiException]。
+     * 协程被取消时从取消方调用 `disconnect()` 打断阻塞的连接 / 读取（Thread.interrupt 对 socket 无效），
+     * 并抛 CancellationException，不会被当成网络错误。
+     */
     private suspend fun post(body: String): String {
         val endpoint = chatEndpoint(config.url)
-        return runInterruptible(Dispatchers.IO) {
-            val conn = try {
-                URL(endpoint).openConnection() as HttpURLConnection
-            } catch (_: IOException) {
-                throw AiException("网络连接失败，请检查网络")
+        val conn = try {
+            URL(endpoint).openConnection() as HttpURLConnection
+        } catch (_: IOException) {
+            throw AiException("接口地址不正确")
+        }
+        try {
+            return suspendCancellableCoroutine { cont ->
+                cont.invokeOnCancellation { conn.disconnect() }
+                CoroutineScope(Dispatchers.IO).launch {
+                    cont.resumeWith(runCatching { exchange(conn, body) })
+                }
             }
+        } finally {
+            conn.disconnect()
+        }
+    }
+
+    /** 阻塞的请求 / 响应过程，只在 IO 线程调用；失败一律转成 [AiException]。 */
+    private fun exchange(conn: HttpURLConnection, body: String): String {
+        try {
+            conn.requestMethod = "POST"
+            conn.connectTimeout = TIMEOUT_MS
+            conn.readTimeout = TIMEOUT_MS
+            conn.doOutput = true
             try {
-                conn.requestMethod = "POST"
-                conn.connectTimeout = TIMEOUT_MS
-                conn.readTimeout = TIMEOUT_MS
-                conn.doOutput = true
                 conn.setRequestProperty("Authorization", "Bearer ${config.apiKey.trim()}")
-                conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
-                conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
-                val code = conn.responseCode
-                val stream = if (code in 200..299) conn.inputStream else conn.errorStream
-                val text = stream?.use { it.readBytes().toString(Charsets.UTF_8) }.orEmpty()
-                if (code != 200) throw AiException(httpErrorMessage(code, text))
-                text
-            } catch (_: IOException) {
-                throw AiException("网络连接失败，请检查网络")
-            } finally {
-                conn.disconnect()
+            } catch (_: IllegalArgumentException) {
+                throw AiException("API Key 或接口地址包含非法字符")
             }
+            conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+            conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+            val code = conn.responseCode
+            val stream = if (code in 200..299) conn.inputStream else conn.errorStream
+            val text = stream?.use { it.readBytes().toString(Charsets.UTF_8) }.orEmpty()
+            if (code != 200) throw AiException(httpErrorMessage(code, text))
+            return text
+        } catch (e: IOException) {
+            throw AiException("网络连接失败，请检查网络")
+        } catch (e: RuntimeException) {
+            throw AiException("请求失败，请检查接口地址和 API Key")
+        } finally {
+            conn.disconnect()
         }
     }
 

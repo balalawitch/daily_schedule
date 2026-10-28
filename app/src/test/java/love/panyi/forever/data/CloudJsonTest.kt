@@ -45,5 +45,9 @@ class CloudJsonTest {
         assertTrue(CloudConfig("https://a.com", "k", "m").isComplete)
         assertFalse(CloudConfig("http://a.com", "k", "m").isComplete)
         assertFalse(CloudConfig("https://a.com", " ", "m").isComplete)
+        assertFalse(CloudConfig("https://a.com", "sk-\u200Babc", "m").isComplete)
+        assertFalse(CloudConfig("https://a.com", "sk-a\nbc", "m").isComplete)
+        assertFalse(CloudConfig("https://a.com", "sk-\uFF41bc", "m").isComplete)
+        assertTrue(CloudConfig("https://a.com", " sk-abc_123 ", "m").isComplete)
     }
 }
