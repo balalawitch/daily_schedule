@@ -2,6 +2,7 @@ package love.panyi.forever.data
 
 import java.io.IOException
 import java.net.HttpURLConnection
+import java.net.SocketTimeoutException
 import java.net.URL
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -26,7 +27,7 @@ const val PLAN_SYSTEM_PROMPT: String = """你是日程整理助手。用户会�
 2. 只输出 JSON，不要任何解释，也不要加代码块标记。格式如下：
 {"days":[{"label":"这组日程适用的天","items":[{"start":"HH:mm","end":"HH:mm","title":"标题","description":"细节"}]}]}
 3. start、end 用 24 小时制 HH:mm；结束时间可以是 24:00。
-4. 同一组 items 里的时间不能重叠。原文没说结束时间的，按常识估一个合理的时长。
+4. 同一组 items 里的时间不能重叠，end 必须晚于 start。原文没说结束时间、或只给了一个时间点的（如“9点前睡觉”），按常识估一个合理的时长。
 5. title 要简短，可以用“·”把事项名和做法分开，例如“写作业·先难后易”；必须准点完成的事项在 title 开头加“⏰”。
 6. 原文里的要求、注意事项、要带的东西等细节写进 description；没有细节就填空字符串。
 7. 原文区分了不同的天（例如工作日、周末、某一天）就拆成多个 days，每个 days 用 label 起个名字（如“周一–周五”“周六”）；没有区分就只输出 1 个，label 写“每天”。
@@ -80,8 +81,8 @@ class CloudGenerator(private val config: CloudConfig) : ScheduleGenerator {
     private fun exchange(conn: HttpURLConnection, body: String): String {
         try {
             conn.requestMethod = "POST"
-            conn.connectTimeout = TIMEOUT_MS
-            conn.readTimeout = TIMEOUT_MS
+            conn.connectTimeout = CONNECT_TIMEOUT_MS
+            conn.readTimeout = READ_TIMEOUT_MS
             conn.doOutput = true
             try {
                 conn.setRequestProperty("Authorization", "Bearer ${config.apiKey.trim()}")
@@ -89,13 +90,21 @@ class CloudGenerator(private val config: CloudConfig) : ScheduleGenerator {
                 throw AiException("API Key 或接口地址包含非法字符")
             }
             conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+            // 先单独连接：连接超时算网络问题，之后的读取超时才是 AI 响应慢
+            try {
+                conn.connect()
+            } catch (_: IOException) {
+                throw AiException("网络连接失败，请检查网络")
+            }
             conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
             val code = conn.responseCode
             val stream = if (code in 200..299) conn.inputStream else conn.errorStream
             val text = stream?.use { it.readBytes().toString(Charsets.UTF_8) }.orEmpty()
             if (code != 200) throw AiException(httpErrorMessage(code, text))
             return text
-        } catch (e: IOException) {
+        } catch (_: SocketTimeoutException) {
+            throw AiException("AI 响应超时，请稍后重试或换个更快的模型")
+        } catch (_: IOException) {
             throw AiException("网络连接失败，请检查网络")
         } catch (e: RuntimeException) {
             throw AiException("请求失败，请检查接口地址和 API Key")
@@ -105,6 +114,9 @@ class CloudGenerator(private val config: CloudConfig) : ScheduleGenerator {
     }
 
     private companion object {
-        const val TIMEOUT_MS = 60_000
+        const val CONNECT_TIMEOUT_MS = 60_000
+
+        // 推理模型（如 gpt-oss）先「思考」再输出，一次生成可能要一两分钟
+        const val READ_TIMEOUT_MS = 180_000
     }
 }

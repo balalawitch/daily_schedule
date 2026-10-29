@@ -170,6 +170,8 @@ private fun ImportInputSheet(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !generating,
                 minLines = 6,
+                // 长文本在框内滚动，不把字数和按钮挤出屏幕
+                maxLines = 10,
                 placeholder = { Text("例如：早上 7 点起床，8 点到 12 点上课，午饭后午休到 2 点……") },
                 supportingText = {
                     val counter = "${text.length} / $MAX_INPUT"

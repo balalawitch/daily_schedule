@@ -41,3 +41,6 @@ CLAUDE.md
 
 # Brainstorm mockups
 .superpowers/
+
+# Local secrets
+.env
