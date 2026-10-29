@@ -779,7 +779,7 @@ private fun TitleLine(name: String, timed: Boolean, weight: FontWeight) {
 }
 
 @Composable
-internal fun TimeRow(block: TimeBlock, backup: String?, done: Boolean, record: ScheduleRecord?, onClick: () -> Unit, readOnly: Boolean = false) {
+internal fun TimeRow(block: TimeBlock, backup: String?, done: Boolean, record: ScheduleRecord?, onClick: () -> Unit, readOnly: Boolean = false, showDescription: Boolean = false) {
     val colors = MaterialTheme.colorScheme
     val minutes = block.end - block.start
     Row(
@@ -818,6 +818,15 @@ internal fun TimeRow(block: TimeBlock, backup: String?, done: Boolean, record: S
                                     style = MaterialTheme.typography.bodySmall,
                                     color = colors.onPrimaryContainer.copy(alpha = 0.8f),
                                     maxLines = 3,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                            if (showDescription && block.schedule.description.isNotBlank()) {
+                                Text(
+                                    block.schedule.description,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = colors.onPrimaryContainer.copy(alpha = 0.8f),
+                                    maxLines = 2,
                                     overflow = TextOverflow.Ellipsis,
                                 )
                             }

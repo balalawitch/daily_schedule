@@ -33,9 +33,9 @@ const val PLAN_SYSTEM_PROMPT: String = """你是日程整理助手。用户会�
 
 示例
 输入：
-工作日放学回家先休息半小时，4点半开始写作业，先做数学，6点吃饭。周六上午9点去上游泳课，两小时。
+工作日放学回家先休息半小时，4点半开始写作业，先做数学，再做语文，6点吃饭。周六上午9点去上游泳课，两小时。
 输出：
-{"days":[{"label":"周一–周五","items":[{"start":"16:00","end":"16:30","title":"休息","description":""},{"start":"16:30","end":"18:00","title":"写作业·先做数学","description":"先做数学，再做其他科目。"},{"start":"18:00","end":"18:30","title":"吃饭","description":""}]},{"label":"周六","items":[{"start":"09:00","end":"11:00","title":"⏰游泳课","description":""}]}]}"""
+{"days":[{"label":"周一–周五","items":[{"start":"16:00","end":"16:30","title":"休息","description":""},{"start":"16:30","end":"18:00","title":"写作业·先做数学","description":"先做数学，再做语文。"},{"start":"18:00","end":"18:30","title":"吃饭","description":""}]},{"label":"周六","items":[{"start":"09:00","end":"11:00","title":"⏰游泳课","description":""}]}]}"""
 
 fun planUserMessage(text: String, retryHint: String?): String =
     if (retryHint.isNullOrBlank()) text else "$text\n\n上次的输出有问题：$retryHint，请修正后重新输出完整 JSON"

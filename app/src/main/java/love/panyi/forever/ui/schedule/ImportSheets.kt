@@ -71,6 +71,7 @@ fun ImportScreen(viewModel: ImportViewModel, snackbar: SnackbarHostState) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     // 输入的文字留在这一层：生成成功后面板关闭、重新生成或预览关闭后再打开时仍在
     var text by rememberSaveable { mutableStateOf("") }
+    var truncated by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(state.message) {
         state.message?.let {
@@ -82,7 +83,11 @@ fun ImportScreen(viewModel: ImportViewModel, snackbar: SnackbarHostState) {
     if (state.open) {
         ImportInputSheet(
             text = text,
-            onTextChange = { text = it.take(MAX_INPUT) },
+            truncated = truncated,
+            onTextChange = {
+                truncated = it.length > MAX_INPUT || (truncated && it.length >= MAX_INPUT)
+                text = it.take(MAX_INPUT)
+            },
             engineLabel = if (state.ready) "云端 API · ${state.cloud.model.trim()}" else "未配置",
             ready = state.ready,
             generating = state.generating,
@@ -135,6 +140,7 @@ fun ImportScreen(viewModel: ImportViewModel, snackbar: SnackbarHostState) {
 @Composable
 private fun ImportInputSheet(
     text: String,
+    truncated: Boolean,
     onTextChange: (String) -> Unit,
     engineLabel: String,
     ready: Boolean,
@@ -166,7 +172,12 @@ private fun ImportInputSheet(
                 minLines = 6,
                 placeholder = { Text("例如：早上 7 点起床，8 点到 12 点上课，午饭后午休到 2 点……") },
                 supportingText = {
-                    Text("${text.length} / $MAX_INPUT", Modifier.fillMaxWidth(), textAlign = TextAlign.End)
+                    val counter = "${text.length} / $MAX_INPUT"
+                    Text(
+                        if (truncated) "已截取前 $MAX_INPUT 字 · $counter" else counter,
+                        Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.End,
+                    )
                 },
             )
             Text(
@@ -209,9 +220,10 @@ private fun ImportSettingsSheet(
     onSave: (CloudConfig) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var url by remember { mutableStateOf(cloud.url) }
-    var apiKey by remember { mutableStateOf(cloud.apiKey) }
-    var model by remember { mutableStateOf(cloud.model) }
+    // 以加载到的配置为键：设置异步读完晚于面板打开时，输入框也会跟着更新，不会拿空值覆盖已存的 Key
+    var url by remember(cloud) { mutableStateOf(cloud.url) }
+    var apiKey by remember(cloud) { mutableStateOf(cloud.apiKey) }
+    var model by remember(cloud) { mutableStateOf(cloud.model) }
     val config = CloudConfig(url, apiKey, model)
     val colors = MaterialTheme.colorScheme
 
@@ -364,6 +376,7 @@ private fun ImportPreview(
                                     done = false,
                                     record = null,
                                     readOnly = true,
+                                    showDescription = true,
                                     onClick = { if (block is TimeBlock.Busy) onItemClick(block.schedule) },
                                 )
                             }

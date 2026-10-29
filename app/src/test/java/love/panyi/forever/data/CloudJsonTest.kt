@@ -50,4 +50,8 @@ class CloudJsonTest {
         assertFalse(CloudConfig("https://a.com", "sk-\uFF41bc", "m").isComplete)
         assertTrue(CloudConfig("https://a.com", " sk-abc_123 ", "m").isComplete)
     }
+
+    @Test fun cloudConfig_toStringMasksApiKey() {
+        assertFalse(CloudConfig("https://a.com", "sk-secret", "m").toString().contains("sk-secret"))
+    }
 }

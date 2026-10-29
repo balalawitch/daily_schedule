@@ -21,6 +21,9 @@ data class CloudConfig(val url: String = "", val apiKey: String = "", val model:
     val isComplete: Boolean
         get() = url.isNotBlank() && apiKey.isNotBlank() && model.isNotBlank() && url.trim().startsWith("https://") &&
             apiKey.trim().all { it in '!'..'~' }
+
+    /** 不把 Key 明文带进日志。 */
+    override fun toString(): String = "CloudConfig(url=$url, apiKey=${if (apiKey.isEmpty()) "" else "***"}, model=$model)"
 }
 
 /** 给用户看的错误（网络、HTTP）。 */
